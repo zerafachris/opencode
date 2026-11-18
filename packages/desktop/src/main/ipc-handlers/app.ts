@@ -3,6 +3,7 @@ import { parseDesktopNativeBundle } from "@opencode/app/i18n/desktop-native"
 import { Effect } from "effect"
 import { AppRpcs } from "../../shared/ipc-rpc"
 import { checkAppExists, resolveAppPath } from "../files/apps"
+import { setUnreadSessions } from "../native/badge"
 import { setForceFocus } from "../native/debug"
 import { DesktopLogging, scoped } from "../native/logging"
 import { getSpellcheckEnabled, setSpellcheckEnabled } from "../native/spellcheck"
@@ -63,6 +64,14 @@ export const appHandlers = AppRpcs.toLayer(
 
           // An installed menu rebuilds through the translation listener in `ipc.ts`.
           setNativeTranslations(bundle)
+        }),
+      AppSetUnreadSessions: ({ sessions }, context) =>
+        Effect.sync(() => {
+          const contents = sender(handoff, context)
+          const win = BrowserWindow.fromWebContents(contents)
+
+          // Only an app window's own renderer reports its tabs, not one embedded in it.
+          if (win && !win.isDestroyed() && win.webContents === contents) setUnreadSessions(win.id, sessions)
         }),
       AppRelaunch: () => Effect.sync(lifecycle.relaunch),
     })

@@ -67,6 +67,11 @@ export const AppSetNativeTranslations = Rpc.make("AppSetNativeTranslations", {
   payload: { value: Schema.Unknown },
 })
 
+// Each window reports the sessions it shows as unread; main badges them once across windows.
+export const AppSetUnreadSessions = Rpc.make("AppSetUnreadSessions", {
+  payload: { sessions: Schema.Array(Schema.String) },
+})
+
 export const AppRelaunch = Rpc.make("AppRelaunch")
 
 export const AppRpcs = RpcGroup.make(
@@ -85,5 +90,6 @@ export const AppRpcs = RpcGroup.make(
   AppSetSpellcheckEnabled,
   AppRecordFatalRendererError,
   AppSetNativeTranslations,
+  AppSetUnreadSessions,
   AppRelaunch,
 )

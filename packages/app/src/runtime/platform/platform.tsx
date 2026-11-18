@@ -114,6 +114,9 @@ type PlatformBase = {
   /** Turn the native spellchecker on or off (desktop only) */
   setSpellcheckEnabled?(enabled: boolean): Promise<void>
 
+  /** Report the sessions this window shows as unread, for the app icon badge (desktop only) */
+  setUnreadSessions?(sessions: string[]): void
+
   /** Run a desktop-only menu action from the app chrome */
   runDesktopMenuAction?(action: DesktopMenuAction): Promise<void> | void
 

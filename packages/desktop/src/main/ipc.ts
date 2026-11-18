@@ -16,6 +16,7 @@ import { storageHandlers } from "./ipc-handlers/storage"
 import { windowHandlers } from "./ipc-handlers/window"
 import { IpcPortHandoff, IpcServerProtocolLive } from "./ipc-transport"
 import { ApplicationLifecycle } from "./lifecycle"
+import { forgetUnreadSessions } from "./native/badge"
 import { createCliInstaller } from "./native/install-cli"
 import { createMenu, disposeMenu, refreshMenu } from "./native/menu"
 import { onNativeTranslations } from "./native/translations"
@@ -57,6 +58,10 @@ export const registerIpcHandlers = Effect.gen(function* () {
   }
 
   const wire = (win: BrowserWindow) => {
+    const windowID = win.id
+    // A closed window stops contributing its unread sessions to the dock badge.
+    win.on("closed", () => forgetUnreadSessions(windowID))
+
     win.webContents.on("before-input-event", (_event, input) => {
       // Ctrl+R renames the session and Ctrl+Shift+R toggles review in the renderer,
       // so the default menu's Reload and Force Reload must not take them.
@@ -77,9 +82,14 @@ export const registerIpcHandlers = Effect.gen(function* () {
 
     // A committed document replaces the bound one; its events wait for the port posted when it loads.
     win.webContents.on("did-navigate", (_event, url) => {
+      // The document that committed reports its own unread sessions; the previous one's no longer apply.
+      forgetUnreadSessions(windowID)
+
       if (isRendererUrl(url)) handoff.prepare(win.webContents)
     })
     win.webContents.on("did-finish-load", post)
+    // A crashed renderer never reports again, so its last set must not outlive it.
+    win.webContents.on("render-process-gone", () => forgetUnreadSessions(windowID))
 
     // The first window starts loading before the layers exist and may already be done.
     if (!win.webContents.isLoading() && win.webContents.getURL()) post()
