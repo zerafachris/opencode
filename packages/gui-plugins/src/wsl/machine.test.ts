@@ -8,6 +8,7 @@ import {
   type WslMachineEvent,
   type WslMachineState,
 } from "./machine"
+import { addServerProbePlan } from "./model"
 import { wslRowView } from "./row-view"
 
 const ubuntu: WslServerConfig = { id: "wsl:Ubuntu", distro: "Ubuntu" }
@@ -310,6 +311,55 @@ describe("host jobs", () => {
 
     expect(settled.effects).toEqual([{ type: "resolve", attempt: "h1" }])
     expect(toServersState(settled.state)).toMatchObject({ hostJob: "idle", runtime })
+  })
+})
+
+describe("check again", () => {
+  // "Check again" re-lists the distros. A distro without a server must be probed again, or a CLI installed after
+  // the first check keeps reading "not installed" until the app restarts.
+  test("relisting forgets what the add dialog read for distros without a server", () => {
+    const runtime = { available: true, version: "2", error: null }
+
+    const installed = [
+      { name: "Ubuntu", version: 2, isDefault: true },
+      { name: "Debian", version: 2, isDefault: false },
+    ]
+
+    const checked = play(
+      createWslMachineState([ubuntu]),
+      { type: "host", attempt: "h0", job: "probe-runtime" },
+      { type: "runtime.probed", attempt: "h0", runtime },
+      { type: "cli.checked", distro: "Ubuntu", check: check("Ubuntu", "2") },
+      { type: "probe", distro: "Debian", attempt: "p1" },
+      { type: "distro.probed", distro: "Debian", attempt: "p1", probe: readyProbe },
+      { type: "cli.inspected", distro: "Debian", attempt: "p1", check: check("Debian", "1") },
+    ).state
+
+    const refreshed = play(
+      checked,
+      { type: "host", attempt: "h1", job: "refresh-distros" },
+      { type: "distros.listed", attempt: "h1", installed, online: [] },
+    )
+
+    const state = toServersState(refreshed.state)
+
+    // The added server keeps its check; the distro the dialog offers is inspected again.
+    expect(state.opencodeChecks).toEqual({ Ubuntu: check("Ubuntu", "2") })
+    expect(state.distroProbes).toEqual({})
+
+    const plan = addServerProbePlan({
+      state,
+      view: "main",
+      busy: false,
+      selectedDistro: "Debian",
+      addableInstalledDistros: state.installed.filter(
+        (item) => !state.servers.some((server) => server.config.distro === item.name),
+      ),
+    })
+
+    if (plan?.kind !== "addable") throw new Error("expected the dialog to probe Debian again")
+    expect(plan.key).toBe("addable:distro:Debian")
+    expect(plan.plan.distros).toEqual(["Debian"])
   })
 })
 

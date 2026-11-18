@@ -199,7 +199,11 @@ export function transitionWslMachine(state: WslMachineState, event: WslMachineEv
   }
 
   if (event.type === "distros.listed") {
-    return hostSettled(state, event.attempt, { installed: event.installed, online: event.online })
+    return hostSettled(state, event.attempt, {
+      installed: event.installed,
+      online: event.online,
+      ...forgetAddableProbes(state),
+    })
   }
 
   if (event.type === "host.failed") return hostFailed(state, event.attempt, event.message)
@@ -318,6 +322,19 @@ function hostFailed(state: OpenState, attempt: string, message: string) {
   if (state.host.status !== "busy" || state.host.attempt !== attempt) return next(state)
 
   return next({ ...state, host: { status: "idle" } }, [reject(attempt, { kind: "error", message })])
+}
+
+// "Check again" re-lists the distros, so what the add dialog read before it can be stale. Forget the probes and CLI
+// verdicts of distros without a server, and the dialog inspects them again. Added servers keep theirs: their rows
+// read them, and a start re-checks the CLI.
+function forgetAddableProbes(state: OpenState) {
+  const configured = new Set(state.configured.map((item) => item.distro))
+  const keep = (distro: string) => configured.has(distro)
+
+  return {
+    distroProbes: Object.fromEntries(Object.entries(state.distroProbes).filter(([distro]) => keep(distro))),
+    opencodeChecks: Object.fromEntries(Object.entries(state.opencodeChecks).filter(([distro]) => keep(distro))),
+  }
 }
 
 // The dialog probes what it shows; a distro already running a job is checked again once it is idle.
