@@ -23,6 +23,7 @@ afterEach(async () => {
 // operations in order; downloads record whether a differential download was allowed and installs record the staged
 // version they would apply. `seen` records every state the updater published.
 async function setup(input?: {
+  enabled?: boolean
   currentVersion?: string
   ready?: { version: string }
   /**
@@ -45,38 +46,41 @@ async function setup(input?: {
 
   const dependencies: Dependencies = {
     currentVersion: input?.currentVersion ?? "1.0.0",
-    platform: {
-      checkForUpdate: Effect.suspend(() => {
-        calls.push("check")
-        const launch = cursor.check === 0
-        const result = found(checks[Math.min(cursor.check++, checks.length - 1)] ?? "2.0.0", !!input?.external)
-        const held = input?.held
+    platform:
+      input?.enabled === false
+        ? undefined
+        : {
+            checkForUpdate: Effect.suspend(() => {
+              calls.push("check")
+              const launch = cursor.check === 0
+              const result = found(checks[Math.min(cursor.check++, checks.length - 1)] ?? "2.0.0", !!input?.external)
+              const held = input?.held
 
-        if (launch || !held) return result
+              if (launch || !held) return result
 
-        return Effect.promise(() => held).pipe(Effect.andThen(result))
-      }),
-      stageUpdate: (options) =>
-        Effect.tryPromise(async () => {
-          calls.push(options.differential ? "download" : "download:full")
-          await input?.stage?.()
-        }),
-      installAndRestart: Effect.suspend(() => {
-        calls.push(`install:${store.ready?.version}`)
+              return Effect.promise(() => held).pipe(Effect.andThen(result))
+            }),
+            stageUpdate: (options) =>
+              Effect.tryPromise(async () => {
+                calls.push(options.differential ? "download" : "download:full")
+                await input?.stage?.()
+              }),
+            installAndRestart: Effect.suspend(() => {
+              calls.push(`install:${store.ready?.version}`)
 
-        return Effect.tryPromise({
-          try: () => input?.install?.() ?? new Promise<void>(() => {}),
-          catch: (error) => error,
-        })
-      }),
-      externalInstall: input?.external
-        ? (url) =>
-            Effect.tryPromise(async () => {
-              calls.push(`external:${url}`)
-              await input.open?.()
-            })
-        : undefined,
-    },
+              return Effect.tryPromise({
+                try: () => input?.install?.() ?? new Promise<void>(() => {}),
+                catch: (error) => error,
+              })
+            }),
+            externalInstall: input?.external
+              ? (url) =>
+                  Effect.tryPromise(async () => {
+                    calls.push(`external:${url}`)
+                    await input.open?.()
+                  })
+              : undefined,
+          },
     restart: (handoff) =>
       Effect.suspend(() => {
         calls.push("prepare")
@@ -131,6 +135,14 @@ describe("updater", () => {
   // The launch check, then one silent re-check per further entry in `checks`. `rechecks` lists the states the
   // re-checks published: a ready or offered update never leaves the screen while one runs.
   test.each([
+    {
+      name: "stays disabled without platform calls when packaged without updater config",
+      input: { enabled: false, checks: ["2.0.0", "2.0.0"] },
+      calls: [],
+      state: { status: "disabled" },
+      ready: undefined,
+      rechecks: [],
+    },
     {
       name: "revalidates a persisted target through the updater cache on launch without a differential download",
       input: { ready: { version: "2.0.0" }, checks: ["2.0.0"] },
