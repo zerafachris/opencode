@@ -637,7 +637,16 @@
 
 /* A row's line clips only sideways, where its subtitle truncates, so a tag as tall as the line is never cut at the
    top or bottom by rounding. */
+[data-timeline="next"] [data-component="tool-trigger"] {
+  content-visibility: visible;
+}
+
+[data-timeline="next"] [data-slot="basic-tool-tool-info"] {
+  line-height: var(--line-height-compact);
+}
+
 [data-timeline="next"] [data-slot="basic-tool-tool-info-main"] {
+  align-items: center;
   overflow: clip visible;
 }
 

@@ -617,7 +617,11 @@ const everyTool: Beat[] = [
   {
     kind: "tool",
     name: "shell",
-    input: { command: "bun run lint src/theme", description: "Lint the theme" },
+    input: {
+      command:
+        "bun run lint src/theme/scheme.ts src/theme/provider.tsx src/settings/general.tsx src/settings/theme-toggle.tsx",
+      description: "Lint the theme",
+    },
     output:
       "src/theme/scheme.ts\n  14:3  error  Unexpected console statement  no-console\n\n1 problem (1 error, 0 warnings)",
     metadata: { exit: 1 },
